@@ -1,0 +1,210 @@
+{
+    "id": "backend",
+    "title": "Backend Developer",
+    "icon": "⚙️",
+    "description": "Design scalable APIs and robust server-side systems",
+    "duration": "5-7 months",
+    "difficulty": "Intermediate",
+    "foundation": {
+        "title": "Foundation Phase",
+        "subtitle": "Think in Systems Before You Code",
+        "description": "Before building APIs, understand how data flows, systems communicate, and decisions are made.",
+        "modules": [
+            {
+                "id": "system-thinking",
+                "title": "System Thinking",
+                "icon": "🔄",
+                "duration": "3-4 hours",
+                "description": "Understand how components communicate in a distributed system",
+                "topics": [
+                    {
+                        "id": "request-lifecycle",
+                        "title": "The Request Lifecycle",
+                        "what": "What happens from browser click to response",
+                        "why": "Every backend bug exists somewhere in this chain. Know the chain.",
+                        "steps": [
+                            "1. Browser sends HTTP request",
+                            "2. DNS resolves domain to IP",
+                            "3. Request hits load balancer",
+                            "4. Routed to application server",
+                            "5. Server processes (auth, business logic)",
+                            "6. Database query if needed",
+                            "7. Response built and returned"
+                        ],
+                        "common_mistakes": [
+                            "Not understanding where latency comes from",
+                            "Ignoring network hops in debugging",
+                            "Assuming requests always succeed"
+                        ],
+                        "senior_tip": "When debugging, trace the full path. The bug is where you didn't look."
+                    },
+                    {
+                        "id": "client-server",
+                        "title": "Client-Server Model",
+                        "what": "Separation of concerns between frontend and backend",
+                        "why": "Clean separation = independent scaling, easier debugging, team parallelization.",
+                        "industry_example": "Netflix: mobile app, TV app, web app all hit the same API.",
+                        "common_mistakes": [
+                            "Putting business logic in the client",
+                            "Returning too much data from APIs",
+                            "Tight coupling between frontend and backend"
+                        ],
+                        "senior_tip": "Your API should work for ANY client, not just the one you're building now."
+                    }
+                ]
+            },
+            {
+                "id": "api-thinking",
+                "title": "API Design Thinking",
+                "icon": "🔌",
+                "duration": "3-4 hours",
+                "description": "Learn to design APIs that are intuitive, consistent, and scalable",
+                "topics": [
+                    {
+                        "id": "rest-principles",
+                        "title": "REST Principles",
+                        "what": "Architectural style for designing networked applications",
+                        "why": "REST is the industry standard. Violating it confuses every developer who uses your API.",
+                        "key_principles": [
+                            "Resources identified by URLs (/users/123)",
+                            "HTTP methods indicate action (GET, POST, PUT, DELETE)",
+                            "Stateless requests",
+                            "Consistent response format"
+                        ],
+                        "common_mistakes": [
+                            "Using POST for everything",
+                            "Verbs in URLs (/getUser instead of /users/:id)",
+                            "Inconsistent error formats"
+                        ],
+                        "senior_tip": "If you need to explain your API, it's probably not RESTful enough."
+                    },
+                    {
+                        "id": "rest-vs-graphql",
+                        "title": "REST vs GraphQL: When to Use Each",
+                        "what": "Two different API paradigms with different tradeoffs",
+                        "why": "Choosing wrong = over-engineering or under-delivering.",
+                        "decision_framework": {
+                            "use_rest": [
+                                "Simple CRUD operations",
+                                "Well-defined, stable resources",
+                                "Caching is important",
+                                "Team is familiar with REST"
+                            ],
+                            "use_graphql": [
+                                "Complex, nested data requirements",
+                                "Multiple clients with different data needs",
+                                "Rapid iteration on frontend",
+                                "Reducing over-fetching is critical"
+                            ]
+                        },
+                        "senior_tip": "Start with REST. Move to GraphQL when you feel REST's pain points."
+                    }
+                ]
+            },
+            {
+                "id": "data-flow",
+                "title": "Data Flow & Storage",
+                "icon": "💾",
+                "duration": "2-3 hours",
+                "description": "Understand how data moves through systems and where it lives",
+                "topics": [
+                    {
+                        "id": "sql-vs-nosql",
+                        "title": "SQL vs NoSQL: The Real Decision",
+                        "what": "Relational vs document-based database paradigms",
+                        "why": "Wrong database choice = migration pain for years.",
+                        "decision_framework": {
+                            "use_sql": [
+                                "Complex relationships between data",
+                                "ACID transactions required",
+                                "Reporting and analytics",
+                                "Data structure is well-defined"
+                            ],
+                            "use_nosql": [
+                                "Flexible/evolving schema",
+                                "Horizontal scaling is priority",
+                                "Document-like data (JSON)",
+                                "High write throughput"
+                            ]
+                        },
+                        "common_mistakes": [
+                            "Using NoSQL because it's 'modern'",
+                            "Using SQL for highly denormalized data",
+                            "Not considering query patterns upfront"
+                        ],
+                        "senior_tip": "What queries will you run? That determines your database, not the data shape."
+                    },
+                    {
+                        "id": "caching-basics",
+                        "title": "Caching Fundamentals",
+                        "what": "Storing computed results to avoid re-computation",
+                        "why": "Caching is the #1 performance optimization. It's also the #1 source of bugs.",
+                        "cache_types": [
+                            "Browser cache (static assets)",
+                            "CDN cache (edge content)",
+                            "Application cache (Redis/Memcached)",
+                            "Database query cache"
+                        ],
+                        "common_mistakes": [
+                            "Caching without invalidation strategy",
+                            "Cache stampedes (all caches expire at once)",
+                            "Caching user-specific data globally"
+                        ],
+                        "senior_tip": "There are only two hard things in CS: cache invalidation and naming things."
+                    }
+                ]
+            }
+        ]
+    },
+    "roadmap": [
+        {
+            "phase": 1,
+            "title": "Foundation Phase",
+            "subtitle": "System Thinking",
+            "concepts": 6,
+            "projects": 0
+        },
+        {
+            "phase": 2,
+            "title": "Server Basics",
+            "subtitle": "HTTP & Node.js/Python",
+            "concepts": 15,
+            "projects": 2
+        },
+        {
+            "phase": 3,
+            "title": "Databases",
+            "subtitle": "SQL & NoSQL",
+            "concepts": 18,
+            "projects": 3
+        },
+        {
+            "phase": 4,
+            "title": "API Development",
+            "subtitle": "REST & Authentication",
+            "concepts": 20,
+            "projects": 3
+        },
+        {
+            "phase": 5,
+            "title": "Advanced Topics",
+            "subtitle": "Caching, Queues, Scaling",
+            "concepts": 15,
+            "projects": 2
+        },
+        {
+            "phase": 6,
+            "title": "Industry Projects",
+            "subtitle": "Production-Ready Systems",
+            "concepts": 5,
+            "projects": 5
+        }
+    ],
+    "outcomes": [
+        "Design and build RESTful APIs",
+        "Work with both SQL and NoSQL databases",
+        "Implement authentication and authorization",
+        "Understand system design basics",
+        "Debug production issues effectively"
+    ]
+}

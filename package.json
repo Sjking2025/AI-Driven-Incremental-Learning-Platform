@@ -1,0 +1,14 @@
+{
+  "name": "ai-career-pathbuilder",
+  "version": "1.0.0",
+  "description": "AI-Powered Career Path Builder - Transform from zero to job-ready",
+  "main": "src/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  },
+  "keywords": ["career", "learning", "ai", "frontend", "backend"],
+  "author": "CareerPath AI",
+  "license": "MIT"
+}

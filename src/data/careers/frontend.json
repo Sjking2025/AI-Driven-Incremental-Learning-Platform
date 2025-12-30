@@ -1,0 +1,205 @@
+{
+    "id": "frontend",
+    "title": "Frontend Developer",
+    "icon": "🎨",
+    "description": "Build beautiful, responsive user interfaces that users love",
+    "duration": "4-6 months",
+    "difficulty": "Beginner Friendly",
+    "foundation": {
+        "title": "Foundation Phase",
+        "subtitle": "Master the 'Why' Before the 'How'",
+        "description": "Before writing a single line of code, understand the principles that make great frontend developers.",
+        "modules": [
+            {
+                "id": "design-principles",
+                "title": "Design Principles",
+                "icon": "🎨",
+                "duration": "2-3 hours",
+                "description": "Learn visual hierarchy, spacing, color theory, and typography fundamentals",
+                "topics": [
+                    {
+                        "id": "visual-hierarchy",
+                        "title": "Visual Hierarchy",
+                        "what": "The arrangement of elements that shows their importance",
+                        "why": "Users scan, not read. Hierarchy guides their eyes to what matters.",
+                        "industry_example": "Google's homepage: one input, one button. Everything else fades away.",
+                        "common_mistakes": [
+                            "Making everything the same size",
+                            "Too many bold elements competing for attention",
+                            "Ignoring whitespace"
+                        ],
+                        "senior_tip": "Squint at your design. What stands out? That's your hierarchy."
+                    },
+                    {
+                        "id": "spacing-rhythm",
+                        "title": "Spacing & Rhythm",
+                        "what": "Consistent use of whitespace between elements",
+                        "why": "Cramped designs feel cheap. Breathing room feels premium.",
+                        "industry_example": "Apple's product pages use massive whitespace to feel luxurious.",
+                        "common_mistakes": [
+                            "Random padding values (10px here, 17px there)",
+                            "Elements too close together",
+                            "Inconsistent gaps between sections"
+                        ],
+                        "senior_tip": "Use a spacing scale (4, 8, 16, 24, 32, 48px). Never invent random values."
+                    },
+                    {
+                        "id": "color-theory",
+                        "title": "Color Theory Basics",
+                        "what": "How colors work together and affect perception",
+                        "why": "Wrong colors = unprofessional. Right colors = trust and emotion.",
+                        "industry_example": "Banks use blue (trust). Food apps use red/orange (appetite).",
+                        "common_mistakes": [
+                            "Using pure black (#000) on pure white",
+                            "Too many accent colors",
+                            "Poor contrast for accessibility"
+                        ],
+                        "senior_tip": "Pick 1 primary, 1 accent, and 2-3 neutrals. That's it."
+                    }
+                ]
+            },
+            {
+                "id": "layout-reasoning",
+                "title": "Layout Reasoning",
+                "icon": "📐",
+                "duration": "3-4 hours",
+                "description": "Understand when to use Flexbox vs Grid, and why certain layouts work",
+                "topics": [
+                    {
+                        "id": "flexbox-vs-grid",
+                        "title": "Flexbox vs Grid: The Decision",
+                        "what": "Two CSS layout systems with different strengths",
+                        "why": "Using the wrong one makes code messy. Using the right one feels effortless.",
+                        "decision_framework": {
+                            "use_flexbox": [
+                                "1D layouts (row OR column)",
+                                "Navigation bars",
+                                "Centering content",
+                                "Card footers with spaced buttons"
+                            ],
+                            "use_grid": [
+                                "2D layouts (rows AND columns)",
+                                "Dashboard layouts",
+                                "Photo galleries",
+                                "Complex form layouts"
+                            ]
+                        },
+                        "common_mistakes": [
+                            "Using Grid for simple centering (Flexbox is simpler)",
+                            "Nesting too many Flex containers",
+                            "Fighting the default behavior instead of using the right tool"
+                        ],
+                        "senior_tip": "Ask: 'Is this 1D or 2D?' 1D = Flexbox. 2D = Grid."
+                    },
+                    {
+                        "id": "responsive-thinking",
+                        "title": "Responsive Design Thinking",
+                        "what": "Designing for all screen sizes, not just desktop",
+                        "why": "60%+ of web traffic is mobile. Desktop-only designs fail.",
+                        "approach": {
+                            "mobile_first": "Start with mobile, add complexity for larger screens",
+                            "why_mobile_first": "It's easier to add than remove. Mobile forces you to prioritize."
+                        },
+                        "common_mistakes": [
+                            "Designing desktop first, then squishing for mobile",
+                            "Fixed pixel widths instead of percentages/fr units",
+                            "Breakpoints that don't match real content needs"
+                        ],
+                        "senior_tip": "Resize your browser constantly while developing. Never assume one size."
+                    }
+                ]
+            },
+            {
+                "id": "ux-thinking",
+                "title": "UX Thinking",
+                "icon": "🧠",
+                "duration": "2-3 hours",
+                "description": "Think about users, not pixels. How real people interact with interfaces.",
+                "topics": [
+                    {
+                        "id": "user-flow",
+                        "title": "User Flow Basics",
+                        "what": "The path a user takes to complete a task",
+                        "why": "Confusing flows = abandoned carts, lost users, failed products.",
+                        "industry_example": "Amazon's 1-click buy: reduced friction = billions in revenue.",
+                        "common_mistakes": [
+                            "Too many steps to complete simple actions",
+                            "Unclear next actions",
+                            "No feedback after user actions"
+                        ],
+                        "senior_tip": "Every click is a chance to lose the user. Minimize clicks ruthlessly."
+                    },
+                    {
+                        "id": "accessibility-basics",
+                        "title": "Accessibility Basics",
+                        "what": "Making interfaces usable by everyone, including people with disabilities",
+                        "why": "1B+ people have disabilities. It's also the law in many countries.",
+                        "quick_wins": [
+                            "Alt text on images",
+                            "Sufficient color contrast (4.5:1 minimum)",
+                            "Keyboard navigation support",
+                            "Clear focus states"
+                        ],
+                        "common_mistakes": [
+                            "Relying only on color to convey meaning",
+                            "Tiny click targets",
+                            "No focus outlines (don't remove them!)"
+                        ],
+                        "senior_tip": "Use your site with keyboard only. If you can't, fix it."
+                    }
+                ]
+            }
+        ]
+    },
+    "roadmap": [
+        {
+            "phase": 1,
+            "title": "Foundation Phase",
+            "subtitle": "Before You Code",
+            "concepts": 8,
+            "projects": 0
+        },
+        {
+            "phase": 2,
+            "title": "HTML Fundamentals",
+            "subtitle": "Structure & Semantics",
+            "concepts": 12,
+            "projects": 2
+        },
+        {
+            "phase": 3,
+            "title": "CSS Mastery",
+            "subtitle": "Styling & Layout",
+            "concepts": 18,
+            "projects": 3
+        },
+        {
+            "phase": 4,
+            "title": "JavaScript Core",
+            "subtitle": "Logic & Interactivity",
+            "concepts": 25,
+            "projects": 4
+        },
+        {
+            "phase": 5,
+            "title": "React",
+            "subtitle": "Modern UI Development",
+            "concepts": 20,
+            "projects": 3
+        },
+        {
+            "phase": 6,
+            "title": "Industry Projects",
+            "subtitle": "Portfolio Ready",
+            "concepts": 5,
+            "projects": 5
+        }
+    ],
+    "outcomes": [
+        "Build production-ready user interfaces",
+        "Think in components and design systems",
+        "Debug CSS issues like a senior developer",
+        "Make design decisions with confidence",
+        "Pass frontend technical interviews"
+    ]
+}
