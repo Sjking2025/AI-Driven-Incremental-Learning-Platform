@@ -4,7 +4,8 @@ import { useAppStore } from '../stores/useAppStore'
 const navLinks = [
   { path: '/', label: 'Home' },
   { path: '/careers', label: 'Career Paths' },
-  { path: '/foundation', label: 'Foundation' },
+  { path: '/skills', label: 'Skill Tree' },
+  { path: '/practice', label: 'Practice' },
   { path: '/projects', label: 'Projects' },
   { path: '/ask', label: 'Ask Anything' },
   { path: '/dashboard', label: 'My Progress' }
