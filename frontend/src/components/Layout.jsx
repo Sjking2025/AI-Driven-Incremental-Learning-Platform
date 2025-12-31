@@ -6,8 +6,8 @@ const navLinks = [
   { path: '/careers', label: 'Career Paths' },
   { path: '/skills', label: 'Skill Tree' },
   { path: '/practice', label: 'Practice' },
+  { path: '/mentor', label: '🧠 AI Mentor' },
   { path: '/projects', label: 'Projects' },
-  { path: '/ask', label: 'Ask Anything' },
   { path: '/dashboard', label: 'My Progress' }
 ]
 
