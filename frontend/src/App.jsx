@@ -8,6 +8,8 @@ import Learn from './pages/Learn'
 import Projects from './pages/Projects'
 import Dashboard from './pages/Dashboard'
 import AskAnything from './pages/AskAnything'
+import Practice from './pages/Practice'
+import SkillTreePage from './pages/SkillTreePage'
 
 function App() {
   return (
@@ -21,6 +23,8 @@ function App() {
         <Route path="projects" element={<Projects />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="ask" element={<AskAnything />} />
+        <Route path="practice" element={<Practice />} />
+        <Route path="skills" element={<SkillTreePage />} />
       </Route>
     </Routes>
   )
