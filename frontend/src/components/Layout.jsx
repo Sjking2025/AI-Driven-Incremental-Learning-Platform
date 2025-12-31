@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAppStore } from '../stores/useAppStore'
+import { useAuth } from '../contexts/AuthContext'
 
 const navLinks = [
   { path: '/', label: 'Home' },
@@ -14,6 +15,7 @@ const navLinks = [
 function Layout() {
   const location = useLocation()
   const streak = useAppStore((state) => state.streak)
+  const { user, isAuthenticated, logout } = useAuth()
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -47,9 +49,24 @@ function Layout() {
                 🔥 {streak} day streak
               </span>
             )}
-            <Link to="/careers" className="btn btn-primary text-sm">
-              Get Started
-            </Link>
+            
+            {isAuthenticated ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-400">
+                  {user?.name || user?.email}
+                </span>
+                <button 
+                  onClick={logout}
+                  className="text-sm text-slate-500 hover:text-white"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" className="btn btn-primary text-sm">
+                Sign In
+              </Link>
+            )}
           </div>
         </div>
       </header>
