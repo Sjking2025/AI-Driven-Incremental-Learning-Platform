@@ -11,6 +11,7 @@ import AskAnything from './pages/AskAnything'
 import Practice from './pages/Practice'
 import SkillTreePage from './pages/SkillTreePage'
 import AIMentor from './pages/AIMentor'
+import Analytics from './pages/Analytics'
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
         <Route path="practice" element={<Practice />} />
         <Route path="skills" element={<SkillTreePage />} />
         <Route path="mentor" element={<AIMentor />} />
+        <Route path="analytics" element={<Analytics />} />
       </Route>
     </Routes>
   )

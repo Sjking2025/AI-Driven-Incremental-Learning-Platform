@@ -3,12 +3,12 @@ import { useAppStore } from '../stores/useAppStore'
 
 const navLinks = [
   { path: '/', label: 'Home' },
-  { path: '/careers', label: 'Career Paths' },
-  { path: '/skills', label: 'Skill Tree' },
+  { path: '/careers', label: 'Careers' },
+  { path: '/skills', label: 'Skills' },
   { path: '/practice', label: 'Practice' },
   { path: '/mentor', label: '🧠 AI Mentor' },
-  { path: '/projects', label: 'Projects' },
-  { path: '/dashboard', label: 'My Progress' }
+  { path: '/analytics', label: '📊 Analytics' },
+  { path: '/dashboard', label: 'Dashboard' }
 ]
 
 function Layout() {
