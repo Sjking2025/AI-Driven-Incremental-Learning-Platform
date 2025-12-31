@@ -1,8 +1,17 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { useAppStore } from '../stores/useAppStore'
+// ========================================
+// Learn Page
+// Connected to Explainer + Scenario Agents
+// ========================================
 
-// 5-Step Learning Content
+import { useState, useEffect } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useExplainer } from '../hooks/useAgents'
+import { learnAPI } from '../services/api'
+import { useAppStore } from '../stores/useAppStore'
+import ReactMarkdown from 'react-markdown'
+
+// Static concept data (fallback)
 const conceptData = {
   'design-principles': {
     title: 'Design Principles',
@@ -10,110 +19,14 @@ const conceptData = {
       {
         id: 'intro',
         title: '1. Concept Intro',
-        content: `
-          <h3>What is Visual Hierarchy?</h3>
-          <p>Visual hierarchy is the arrangement of elements to show their order of importance.</p>
-          
-          <h4>Where it's used:</h4>
-          <ul>
-            <li>Landing pages - Guide users to CTA</li>
-            <li>Dashboards - Highlight key metrics</li>
-            <li>E-commerce - Focus on products</li>
-          </ul>
-          
-          <h4>Why it matters:</h4>
-          <p>Users scan, they don't read. Without hierarchy, everything competes for attention and nothing wins.</p>
-          
-          <h4>Common mistakes:</h4>
-          <ul>
-            <li>❌ Multiple equal-sized headings</li>
-            <li>❌ Competing colors</li>
-            <li>❌ No clear focal point</li>
-          </ul>
-        `
-      },
-      {
-        id: 'practice',
-        title: '2. Mini Project',
-        content: `
-          <h3>Scenario: E-commerce Product Page</h3>
-          <p>You're designing a product page. What should users see first?</p>
-          
-          <div class="bg-slate-800 p-4 rounded-lg my-4">
-            <p class="font-mono text-sm">
-              Product Image → Price → Add to Cart → Reviews → Description
-            </p>
-          </div>
-          
-          <h4>Your Task:</h4>
-          <p>Rank these elements by importance and explain your reasoning.</p>
-          
-          <h4>Hint:</h4>
-          <p>Think about what the user came to do: BUY. Everything should guide there.</p>
-        `
-      },
-      {
-        id: 'why',
-        title: '3. Why This Works',
-        content: `
-          <h3>The Psychology Behind It</h3>
-          <p>Our eyes naturally follow a pattern:</p>
-          
-          <ul>
-            <li><strong>Size:</strong> Bigger = more important</li>
-            <li><strong>Color:</strong> Contrast draws attention</li>
-            <li><strong>Position:</strong> Top-left starts the journey</li>
-            <li><strong>Whitespace:</strong> Isolation creates focus</li>
-          </ul>
-          
-          <h4>Why alternatives fail:</h4>
-          <p>When everything is "important," nothing stands out. Users get overwhelmed and leave.</p>
-          
-          <div class="bg-indigo-900/50 p-4 rounded-lg my-4">
-            <strong>Senior Insight:</strong> Amazon's "Add to Cart" button isn't just well-placed — it's the only orange element on a white page. That's deliberate.
-          </div>
-        `
-      },
-      {
-        id: 'industry',
-        title: '4. Industry Mapping',
-        content: `
-          <h3>Where Companies Use This</h3>
-          
-          <h4>🏢 Stripe</h4>
-          <p>Their landing page has ONE focus: "Start now" button. Everything else fades.</p>
-          
-          <h4>🏢 Airbnb</h4>
-          <p>Search bar dominates the header. Photos dominate listings.</p>
-          
-          <h4>🏢 Apple</h4>
-          <p>Product images are massive. Text is minimal. The product sells itself.</p>
-          
-          <h4>Interview Question:</h4>
-          <p>"How would you redesign this page to improve conversion?"</p>
-          <p class="text-sm text-slate-400">Start with: "First, I'd identify the primary action..."</p>
-        `
-      },
-      {
-        id: 'challenge',
-        title: '5. Skill Challenge',
-        content: `
-          <h3>Debug This Design</h3>
-          <p>A landing page has these issues:</p>
-          
-          <ul>
-            <li>3 CTAs of equal prominence</li>
-            <li>Hero text and image compete for attention</li>
-            <li>Navigation has 8 items at same size</li>
-          </ul>
-          
-          <h4>Your Fix:</h4>
-          <p>Describe 3 specific changes you'd make and why.</p>
-          
-          <div class="bg-emerald-900/30 p-4 rounded-lg my-4">
-            <strong>Success criteria:</strong> After your changes, a stranger should know what to do within 3 seconds.
-          </div>
-        `
+        content: `### What is Visual Hierarchy?
+
+Visual hierarchy is the arrangement of elements to show their order of importance.
+
+**Where it's used:**
+- Landing pages - Guide users to CTA
+- Dashboards - Highlight key metrics
+- E-commerce - Focus on products`
       }
     ]
   }
@@ -121,15 +34,47 @@ const conceptData = {
 
 function Learn() {
   const { conceptId } = useParams()
-  const [currentStep, setCurrentStep] = useState(0)
+  const { isAuthenticated } = useAuth()
+  const { explain, explanation, loading, error } = useExplainer()
   const updateConceptMastery = useAppStore((state) => state.updateConceptMastery)
+  
+  const [currentStep, setCurrentStep] = useState(0)
+  const [aiContent, setAiContent] = useState(null)
 
-  const concept = conceptData[conceptId] || conceptData['design-principles']
-  const steps = concept.steps
+  const concept = conceptData[conceptId] || { title: conceptId?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), steps: [] }
 
-  const handleComplete = () => {
-    updateConceptMastery(conceptId, 0.8) // 80% mastery on completion
+  // Fetch AI explanation when concept changes
+  useEffect(() => {
+    if (isAuthenticated && conceptId) {
+      explain(conceptId, 'beginner')
+    }
+  }, [isAuthenticated, conceptId, explain])
+
+  // Update AI content when explanation is received
+  useEffect(() => {
+    if (explanation) {
+      setAiContent(explanation)
+    }
+  }, [explanation])
+
+  const handleComplete = async () => {
+    updateConceptMastery(conceptId, 0.8)
+    
+    // Record to backend if authenticated
+    if (isAuthenticated) {
+      try {
+        await learnAPI.recordProgress(conceptId, true)
+      } catch (err) {
+        console.error('Failed to record progress:', err)
+      }
+    }
   }
+
+  const steps = [
+    { id: 'ai-explain', title: '🧠 AI Explanation' },
+    ...(concept.steps || []),
+    { id: 'practice', title: '🎯 Practice' }
+  ]
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -138,7 +83,14 @@ function Learn() {
         <Link to="/foundation" className="text-sm text-slate-400 hover:text-white">
           ← Back to Foundation
         </Link>
-        <h1 className="text-3xl font-bold mt-4">{concept.title}</h1>
+        <div className="flex items-center gap-4 mt-4">
+          <h1 className="text-3xl font-bold">{concept.title}</h1>
+          {isAuthenticated && (
+            <span className="badge badge-primary text-xs">
+              Explainer Agent Active
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Step Navigation */}
@@ -162,8 +114,74 @@ function Learn() {
       <div 
         className="card prose prose-invert max-w-none animate-fade-in-up"
         style={{ animationDelay: '0.2s' }}
-        dangerouslySetInnerHTML={{ __html: steps[currentStep].content }}
-      />
+      >
+        {currentStep === 0 ? (
+          // AI Explanation (first step)
+          <div>
+            <h3 className="flex items-center gap-2">
+              <span>🧠</span>
+              AI-Generated Explanation
+            </h3>
+            
+            {loading ? (
+              <div className="flex items-center gap-3 py-8">
+                <div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />
+                <span className="text-slate-400">Explainer Agent is preparing your lesson...</span>
+              </div>
+            ) : error ? (
+              <div className="bg-rose-950/30 border border-rose-500/50 rounded-lg p-4">
+                <p className="text-rose-300">{error}</p>
+                {!isAuthenticated && (
+                  <Link to="/login" className="text-indigo-400 hover:underline mt-2 block">
+                    Log in for AI-powered explanations →
+                  </Link>
+                )}
+              </div>
+            ) : aiContent ? (
+              <ReactMarkdown
+                components={{
+                  code: ({ inline, children }) => 
+                    inline ? (
+                      <code className="bg-slate-700 px-1 rounded">{children}</code>
+                    ) : (
+                      <pre className="bg-slate-900 p-3 rounded-lg overflow-x-auto">
+                        <code>{children}</code>
+                      </pre>
+                    )
+                }}
+              >
+                {aiContent}
+              </ReactMarkdown>
+            ) : (
+              <div className="text-slate-400">
+                <p>Log in to get AI-powered explanations from the Explainer Agent.</p>
+                <Link to="/login" className="btn btn-primary mt-4">
+                  Sign In →
+                </Link>
+              </div>
+            )}
+          </div>
+        ) : currentStep === steps.length - 1 ? (
+          // Practice step (last step)
+          <div>
+            <h3>🎯 Practice Challenge</h3>
+            <p>Apply what you've learned with a real-world scenario.</p>
+            
+            <div className="bg-slate-800 p-4 rounded-lg my-4">
+              <p className="font-semibold mb-2">Your Task:</p>
+              <p>Explain {conceptId?.replace(/-/g, ' ')} to a junior developer in your own words.</p>
+            </div>
+
+            <div className="bg-indigo-900/50 p-4 rounded-lg">
+              <p className="font-semibold mb-2">💡 Senior Tip:</p>
+              <p>If you can teach it, you understand it. Try explaining without looking at the notes.</p>
+            </div>
+          </div>
+        ) : (
+          // Static steps
+          <div dangerouslySetInnerHTML={{ __html: steps[currentStep]?.content || '' }} />
+        )}
+      </div>
 
       {/* Navigation */}
       <div className="flex justify-between animate-fade-in-up" style={{ animationDelay: '0.3s' }}>

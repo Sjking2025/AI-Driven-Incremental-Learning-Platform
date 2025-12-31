@@ -1,3 +1,13 @@
+// ========================================
+// Projects Page
+// Connected to Backend Project Agent
+// ========================================
+
+import { useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { agents } from '../services/api'
+import ReactMarkdown from 'react-markdown'
+
 const projectsData = {
   micro: [
     {
@@ -62,15 +72,96 @@ const levelColors = {
 }
 
 function Projects() {
+  const { isAuthenticated } = useAuth()
+  const [generatedProject, setGeneratedProject] = useState(null)
+  const [generating, setGenerating] = useState(false)
+  const [selectedConcept, setSelectedConcept] = useState('')
+
+  const generateAIProject = async () => {
+    if (!selectedConcept.trim()) return
+    
+    setGenerating(true)
+    try {
+      const result = await agents.generateProject([selectedConcept], 'medium')
+      setGeneratedProject(result.result)
+    } catch (err) {
+      console.error('Failed to generate project:', err)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   return (
     <div className="space-y-12">
       <div className="text-center animate-fade-in-up">
+        <div className="inline-flex items-center gap-2 badge badge-primary mb-4">
+          {isAuthenticated ? '🔨 Project Agent Ready' : '🔨 Projects'}
+        </div>
         <h1 className="text-4xl font-bold mb-4">Industry-Grade Projects</h1>
         <p className="text-slate-400 max-w-xl mx-auto">
           Not todo apps. Not clones. Real engineering challenges that teach you 
           to think like a senior developer.
         </p>
       </div>
+
+      {/* AI Project Generator */}
+      {isAuthenticated && (
+        <div className="card bg-gradient-to-r from-indigo-950/50 to-purple-950/50 animate-fade-in-up">
+          <h3 className="text-xl font-bold mb-4">🤖 Generate Custom Project</h3>
+          <p className="text-slate-400 mb-4">
+            Tell the Project Agent what concept you want to practice, and it'll design a custom challenge.
+          </p>
+          
+          <div className="flex gap-4 mb-4">
+            <input
+              type="text"
+              value={selectedConcept}
+              onChange={(e) => setSelectedConcept(e.target.value)}
+              placeholder="e.g., closures, async/await, React hooks..."
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 focus:outline-none focus:border-indigo-500"
+            />
+            <button
+              onClick={generateAIProject}
+              disabled={generating || !selectedConcept.trim()}
+              className="btn btn-primary disabled:opacity-50"
+            >
+              {generating ? 'Generating...' : 'Generate Project'}
+            </button>
+          </div>
+
+          {generatedProject && (
+            <div className="bg-slate-800/50 rounded-lg p-6 mt-4">
+              <h4 className="text-lg font-bold mb-2">
+                {generatedProject.project?.title || 'Your Custom Project'}
+              </h4>
+              <p className="text-slate-400 mb-4">
+                {generatedProject.project?.description || ''}
+              </p>
+              
+              {generatedProject.project?.requirements && (
+                <div className="space-y-2 mb-4">
+                  <h5 className="font-semibold">Requirements:</h5>
+                  {generatedProject.project.requirements.map((req, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <span className="text-indigo-400">•</span>
+                      <span>{req.description || req}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {generatedProject.project?.starterCode && (
+                <div className="mt-4">
+                  <h5 className="font-semibold mb-2">Starter Code:</h5>
+                  <pre className="bg-slate-900 p-4 rounded-lg overflow-x-auto text-sm">
+                    <code>{generatedProject.project.starterCode}</code>
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Micro Projects */}
       <Section 
