@@ -29,24 +29,24 @@ function Analytics() {
   const { isAuthenticated, user } = useAuth()
   const { 
     stats, 
-    readiness, 
-    skillRadar: dbSkillRadar, 
+    activity, 
+    progress: dbProgress, 
     loading, 
     lastSync,
     totalConcepts,
     avgMastery,
     weakCount,
     strongCount,
-    loadUserData 
+    loadAllUserData 
   } = useLearning()
   const { concepts: masteryData } = useConceptMemory()
 
   // Load fresh data on mount
   useEffect(() => {
     if (isAuthenticated) {
-      loadUserData()
+      loadAllUserData()
     }
-  }, [isAuthenticated, loadUserData])
+  }, [isAuthenticated, loadAllUserData])
   
   const completedConcepts = useMemo(() => 
     Object.entries(masteryData)
@@ -62,14 +62,25 @@ function Analytics() {
   const masteryTrend = useMemo(() => getMasteryTrend(masteryData), [masteryData])
   
   const skillRadarData = useMemo(() => {
-    if (isAuthenticated && dbSkillRadar && dbSkillRadar.length > 0) {
-      return dbSkillRadar
+    // Use dbProgress to calculate skill radar if available
+    if (isAuthenticated && dbProgress && dbProgress.length > 0) {
+      // Group progress by category/phase
+      const categories = {}
+      dbProgress.forEach(p => {
+        const category = p.concept_id?.split('-')[0] || 'other'
+        if (!categories[category]) categories[category] = []
+        categories[category].push(p.mastery)
+      })
+      return Object.entries(categories).map(([name, values]) => ({
+        skill: name,
+        value: Math.round(values.reduce((a, b) => a + b, 0) / values.length)
+      }))
     }
     return getLocalSkillRadar(masteryData)
-  }, [isAuthenticated, dbSkillRadar, masteryData])
+  }, [isAuthenticated, dbProgress, masteryData])
 
   const difficulty = useMemo(() => calculateDifficultyLevel(masteryData), [masteryData])
-  const diffInfo = difficultyInfo[difficulty]
+  const diffInfo = difficultyInfo[difficulty] || { label: 'Beginner', color: 'text-emerald-400', icon: '🌱' }
 
   const maxTrend = Math.max(...masteryTrend.map(d => d.value), 1)
 
@@ -124,7 +135,7 @@ function Analytics() {
       )}
 
       {/* Job Readiness (DB only) */}
-      {isAuthenticated && readiness && (
+      {isAuthenticated && (
         <div className="card bg-gradient-to-r from-indigo-950/50 to-purple-950/50 animate-fade-in-up">
           <div className="flex items-center justify-between">
             <div>
@@ -135,22 +146,24 @@ function Analytics() {
               <p className="text-sm text-slate-400">Based on {displayStats.totalPracticed} concepts in your account</p>
             </div>
             <div className="text-right">
-              <div className="text-4xl font-bold text-indigo-400">{readiness.overall}%</div>
-              <div className="text-sm text-slate-400">{readiness.level}</div>
+              <div className="text-4xl font-bold text-indigo-400">{avgMastery || 0}%</div>
+              <div className="text-sm text-slate-400">
+                {avgMastery >= 70 ? 'Job Ready' : avgMastery >= 40 ? 'In Progress' : 'Getting Started'}
+              </div>
             </div>
           </div>
           <div className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">
             <div className="glass rounded-lg p-2">
-              <div className="text-indigo-400 font-bold">{readiness.breakdown?.mastery || 0}%</div>
+              <div className="text-indigo-400 font-bold">{avgMastery || 0}%</div>
               <div className="text-slate-500">Mastery</div>
             </div>
             <div className="glass rounded-lg p-2">
-              <div className="text-purple-400 font-bold">{readiness.breakdown?.coverage || 0}%</div>
-              <div className="text-slate-500">Coverage</div>
+              <div className="text-purple-400 font-bold">{displayStats.totalPracticed || 0}</div>
+              <div className="text-slate-500">Concepts</div>
             </div>
             <div className="glass rounded-lg p-2">
-              <div className="text-pink-400 font-bold">{readiness.breakdown?.consistency || 0}%</div>
-              <div className="text-slate-500">Consistency</div>
+              <div className="text-pink-400 font-bold">{displayStats.strongCount || 0}</div>
+              <div className="text-slate-500">Mastered</div>
             </div>
           </div>
         </div>

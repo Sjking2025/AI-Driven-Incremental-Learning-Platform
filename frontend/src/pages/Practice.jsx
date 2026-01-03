@@ -20,16 +20,16 @@ function Practice() {
     dueCount,
     getWeakConcepts,
     getDueForReview,
-    loadUserData 
+    loadAllUserData 
   } = useLearning()
   const [showSession, setShowSession] = useState(false)
   
   // Refresh data on mount
   useEffect(() => {
     if (isAuthenticated) {
-      loadUserData()
+      loadAllUserData()
     }
-  }, [isAuthenticated, loadUserData])
+  }, [isAuthenticated, loadAllUserData])
   
   if (showSession) {
     return (
@@ -37,7 +37,7 @@ function Practice() {
         <button 
           onClick={() => {
             setShowSession(false)
-            loadUserData() // Refresh after session
+            loadAllUserData() // Refresh after session
           }}
           className="text-sm text-slate-400 hover:text-white mb-6"
         >

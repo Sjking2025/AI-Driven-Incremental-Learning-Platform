@@ -13,22 +13,23 @@ function Dashboard() {
   const { user, isAuthenticated } = useAuth()
   const { 
     stats, 
-    readiness, 
+    profile,
     loading, 
     totalConcepts, 
     avgMastery, 
     dueCount, 
     strongCount,
-    loadUserData 
+    currentStreak,
+    loadAllUserData 
   } = useLearning()
   const { streak } = useAppStore()
 
   // Refresh data on mount
   useEffect(() => {
     if (isAuthenticated) {
-      loadUserData()
+      loadAllUserData()
     }
-  }, [isAuthenticated, loadUserData])
+  }, [isAuthenticated, loadAllUserData])
 
   const skills = [
     { name: 'HTML', level: 85, color: 'bg-orange-500' },
@@ -49,8 +50,8 @@ function Dashboard() {
 
   const maxHours = Math.max(...weeklyProgress.map(d => d.hours))
 
-  const readinessScore = readiness?.overall || 35
-  const readinessLevel = readiness?.level || 'In Progress'
+  const readinessScore = avgMastery || 35
+  const readinessLevel = avgMastery >= 70 ? 'Job Ready' : avgMastery >= 40 ? 'In Progress' : 'Getting Started'
 
   const circumference = 2 * Math.PI * 80
   const offset = circumference - (readinessScore / 100) * circumference
@@ -71,7 +72,7 @@ function Dashboard() {
           </p>
         </div>
         <div className="badge badge-warning text-lg px-4 py-2 animate-float">
-          🔥 {streak || 5} Day Streak
+          🔥 {currentStreak || streak || 0} Day Streak
         </div>
       </div>
 

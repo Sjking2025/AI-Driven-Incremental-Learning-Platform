@@ -1,73 +1,105 @@
 // ========================================
 // Learning Context
-// Syncs user progress with backend database
+// Complete user data sync with backend
 // ========================================
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useAuth } from './AuthContext'
-import { learnAPI, agents } from '../services/api'
+import { userAPI, learnAPI } from '../services/api'
 
 const LearningContext = createContext(null)
 
 export function LearningProvider({ children }) {
   const { isAuthenticated, user } = useAuth()
   
-  // User's learning data from database
+  // User profile from database
+  const [profile, setProfile] = useState(null)
+  
+  // Progress data from database
   const [progress, setProgress] = useState([])
+  const [views, setViews] = useState([])
+  const [activity, setActivity] = useState([])
+  const [sessions, setSessions] = useState([])
   const [stats, setStats] = useState(null)
-  const [readiness, setReadiness] = useState(null)
-  const [skillRadar, setSkillRadar] = useState([])
+  
+  // Loading states
   const [loading, setLoading] = useState(false)
   const [lastSync, setLastSync] = useState(null)
 
-  // Load user data when authenticated
+  // Load all user data when authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      loadUserData()
+      loadAllUserData()
     } else {
       // Clear data when logged out
+      setProfile(null)
       setProgress([])
+      setViews([])
+      setActivity([])
+      setSessions([])
       setStats(null)
-      setReadiness(null)
-      setSkillRadar([])
     }
   }, [isAuthenticated])
 
   // Load all user data from backend
-  const loadUserData = useCallback(async () => {
+  const loadAllUserData = useCallback(async () => {
     if (!isAuthenticated) return
     
     setLoading(true)
     try {
-      // Fetch all data in parallel
-      const [progressRes, statsRes] = await Promise.all([
-        learnAPI.getProgress().catch(() => ({ progress: [] })),
-        learnAPI.getStats().catch(() => ({ stats: null }))
-      ])
-
-      setProgress(progressRes.progress || [])
-      setStats(statsRes.stats || null)
+      const data = await userAPI.getAllProgress()
+      
+      setProfile(data.profile || null)
+      setProgress(data.progress || [])
+      setViews(data.views || [])
+      setActivity(data.activity || [])
+      setStats(data.stats || null)
       setLastSync(new Date())
-
-      // Fetch readiness and skill radar (require user data)
-      try {
-        const readinessRes = await agents.getReadiness('frontend')
-        setReadiness(readinessRes.result)
-      } catch (e) {
-        console.log('Readiness fetch skipped')
-      }
-
-      try {
-        const radarRes = await agents.getSkillRadar()
-        setSkillRadar(radarRes.result || [])
-      } catch (e) {
-        console.log('Skill radar fetch skipped')
-      }
-
+      
+      console.log('✅ Loaded user data from database')
     } catch (error) {
       console.error('Failed to load user data:', error)
     } finally {
       setLoading(false)
+    }
+  }, [isAuthenticated])
+
+  // Update profile
+  const updateProfile = useCallback(async (updates) => {
+    if (!isAuthenticated) return null
+    
+    try {
+      const result = await userAPI.updateProfile(updates)
+      setProfile(result.profile)
+      return result.profile
+    } catch (error) {
+      console.error('Failed to update profile:', error)
+      throw error
+    }
+  }, [isAuthenticated])
+
+  // Record viewing a concept
+  const viewConcept = useCallback(async (conceptId, source = 'learn_page', timeSpentSeconds = 0) => {
+    if (!isAuthenticated) return null
+    
+    try {
+      const result = await userAPI.viewConcept(conceptId, source, timeSpentSeconds)
+      
+      // Update local views
+      setViews(prev => {
+        const existing = prev.find(v => v.concept_id === conceptId)
+        if (existing) {
+          return prev.map(v => v.concept_id === conceptId 
+            ? { ...v, view_count: v.view_count + 1, time_spent_seconds: (v.time_spent_seconds || 0) + timeSpentSeconds }
+            : v
+          )
+        }
+        return [...prev, { concept_id: conceptId, view_count: 1, time_spent_seconds: timeSpentSeconds }]
+      })
+      
+      return result.view
+    } catch (error) {
+      console.error('Failed to record view:', error)
     }
   }, [isAuthenticated])
 
@@ -81,35 +113,103 @@ export function LearningProvider({ children }) {
     try {
       const result = await learnAPI.recordProgress(conceptId, success)
       
-      // Update local state optimistically
+      // Update local progress
       setProgress(prev => {
         const existing = prev.find(p => p.concept_id === conceptId)
         if (existing) {
           return prev.map(p => p.concept_id === conceptId 
-            ? { ...p, mastery: result.mastery, exposures: (p.exposures || 0) + 1 }
+            ? { 
+                ...p, 
+                mastery: result.mastery, 
+                exposures: (p.exposures || 0) + 1,
+                successes: success ? (p.successes || 0) + 1 : p.successes,
+                failures: !success ? (p.failures || 0) + 1 : p.failures
+              }
             : p
           )
         }
-        return [...prev, { concept_id: conceptId, mastery: result.mastery, exposures: 1 }]
+        return [...prev, { 
+          concept_id: conceptId, 
+          mastery: result.mastery, 
+          exposures: 1,
+          successes: success ? 1 : 0,
+          failures: !success ? 1 : 0
+        }]
       })
-
-      // Refresh stats
-      await loadUserData()
       
+      console.log(`📊 Progress saved: ${conceptId} → ${result.mastery}%`)
       return result
     } catch (error) {
       console.error('Failed to record progress:', error)
       throw error
     }
-  }, [isAuthenticated, loadUserData])
+  }, [isAuthenticated])
 
-  // Get mastery for a specific concept
+  // Record daily activity
+  const recordActivity = useCallback(async (data) => {
+    if (!isAuthenticated) return null
+    
+    try {
+      const result = await userAPI.recordActivity(data)
+      
+      // Refresh activity
+      const activityRes = await userAPI.getActivity(7)
+      setActivity(activityRes.activity || [])
+      
+      return result.activity
+    } catch (error) {
+      console.error('Failed to record activity:', error)
+    }
+  }, [isAuthenticated])
+
+  // Practice session management
+  const startPracticeSession = useCallback(async (sessionType = 'mixed') => {
+    if (!isAuthenticated) return null
+    
+    try {
+      const result = await userAPI.startPracticeSession(sessionType)
+      return result.session
+    } catch (error) {
+      console.error('Failed to start session:', error)
+    }
+  }, [isAuthenticated])
+
+  const endPracticeSession = useCallback(async (sessionId, results) => {
+    if (!isAuthenticated) return null
+    
+    try {
+      const result = await userAPI.endPracticeSession(sessionId, results)
+      
+      // Record activity
+      await recordActivity({
+        conceptsPracticed: results.conceptsPracticed?.length || 0,
+        questionsAnswered: results.totalQuestions || 0,
+        correctAnswers: results.correctAnswers || 0
+      })
+      
+      // Refresh data
+      await loadAllUserData()
+      
+      return result.session
+    } catch (error) {
+      console.error('Failed to end session:', error)
+    }
+  }, [isAuthenticated, recordActivity, loadAllUserData])
+
+  // Helper functions
   const getMastery = useCallback((conceptId) => {
     const concept = progress.find(p => p.concept_id === conceptId)
     return concept?.mastery || 0
   }, [progress])
 
-  // Get concepts due for review
+  const getConceptStatus = useCallback((conceptId) => {
+    const concept = progress.find(p => p.concept_id === conceptId)
+    if (!concept) return 'not_started'
+    if (concept.mastery >= 80) return 'mastered'
+    if (concept.mastery > 0) return 'in_progress'
+    return 'not_started'
+  }, [progress])
+
   const getDueForReview = useCallback(() => {
     return progress.filter(p => {
       if (!p.next_review) return false
@@ -117,41 +217,58 @@ export function LearningProvider({ children }) {
     })
   }, [progress])
 
-  // Get weak concepts (mastery < 50%)
   const getWeakConcepts = useCallback(() => {
-    return progress.filter(p => p.mastery < 50)
+    return progress.filter(p => p.mastery > 0 && p.mastery < 50)
   }, [progress])
 
-  // Get strong concepts (mastery >= 80%)
   const getStrongConcepts = useCallback(() => {
     return progress.filter(p => p.mastery >= 80)
   }, [progress])
 
+  const hasViewed = useCallback((conceptId) => {
+    return views.some(v => v.concept_id === conceptId)
+  }, [views])
+
   const value = {
-    // Data
+    // Profile
+    profile,
+    updateProfile,
+    
+    // Progress data
     progress,
+    views,
+    activity,
+    sessions,
     stats,
-    readiness,
-    skillRadar,
+    
+    // Loading states
     loading,
     lastSync,
     
     // Actions
-    loadUserData,
+    loadAllUserData,
+    viewConcept,
     recordProgress,
+    recordActivity,
+    startPracticeSession,
+    endPracticeSession,
     
     // Helpers
     getMastery,
+    getConceptStatus,
     getDueForReview,
     getWeakConcepts,
     getStrongConcepts,
+    hasViewed,
     
-    // Convenience stats
+    // Computed stats
     totalConcepts: progress.length,
-    avgMastery: stats?.avg_mastery || 0,
+    avgMastery: stats?.avgMastery || 0,
     dueCount: getDueForReview().length,
     weakCount: getWeakConcepts().length,
-    strongCount: getStrongConcepts().length
+    strongCount: getStrongConcepts().length,
+    currentStreak: profile?.current_streak || 0,
+    totalTimeMinutes: profile?.total_time_minutes || 0
   }
 
   return (

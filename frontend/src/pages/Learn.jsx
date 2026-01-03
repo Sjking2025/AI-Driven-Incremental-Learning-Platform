@@ -1,47 +1,54 @@
 // ========================================
 // Learn Page
-// Connected to Explainer + Scenario Agents
+// Tracks views and completion to database
 // ========================================
 
-import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useLearning } from '../contexts/LearningContext'
 import { useExplainer } from '../hooks/useAgents'
 import { learnAPI } from '../services/api'
 import { useAppStore } from '../stores/useAppStore'
+import { frontendSkillGraph } from '../data/skillGraph'
 import ReactMarkdown from 'react-markdown'
-
-// Static concept data (fallback)
-const conceptData = {
-  'design-principles': {
-    title: 'Design Principles',
-    steps: [
-      {
-        id: 'intro',
-        title: '1. Concept Intro',
-        content: `### What is Visual Hierarchy?
-
-Visual hierarchy is the arrangement of elements to show their order of importance.
-
-**Where it's used:**
-- Landing pages - Guide users to CTA
-- Dashboards - Highlight key metrics
-- E-commerce - Focus on products`
-      }
-    ]
-  }
-}
 
 function Learn() {
   const { conceptId } = useParams()
+  const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
-  const { explain, explanation, loading, error } = useExplainer()
+  const { 
+    viewConcept, 
+    recordProgress, 
+    updateProfile, 
+    getMastery,
+    loadAllUserData 
+  } = useLearning()
+  const { explain, explanation, loading: aiLoading, error: aiError } = useExplainer()
   const updateConceptMastery = useAppStore((state) => state.updateConceptMastery)
   
   const [currentStep, setCurrentStep] = useState(0)
-  const [aiContent, setAiContent] = useState(null)
+  const [startTime] = useState(Date.now())
+  const [completed, setCompleted] = useState(false)
+  const hasTrackedView = useRef(false)
 
-  const concept = conceptData[conceptId] || { title: conceptId?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), steps: [] }
+  // Get concept data from skill graph
+  const concept = frontendSkillGraph[conceptId] || { 
+    title: conceptId?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), 
+    skills: [],
+    phase: 'foundation'
+  }
+
+  const currentMastery = getMastery(conceptId) || 0
+
+  // Track view when page loads
+  useEffect(() => {
+    if (isAuthenticated && conceptId && !hasTrackedView.current) {
+      hasTrackedView.current = true
+      viewConcept(conceptId, 'learn_page', 0)
+      console.log(`👁️ Tracked view: ${conceptId}`)
+    }
+  }, [isAuthenticated, conceptId, viewConcept])
 
   // Fetch AI explanation when concept changes
   useEffect(() => {
@@ -50,46 +57,96 @@ function Learn() {
     }
   }, [isAuthenticated, conceptId, explain])
 
-  // Update AI content when explanation is received
+  // Track time spent when leaving
   useEffect(() => {
-    if (explanation) {
-      setAiContent(explanation)
+    return () => {
+      if (isAuthenticated && conceptId && hasTrackedView.current) {
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000)
+        if (timeSpent > 5) {
+          viewConcept(conceptId, 'learn_page', timeSpent)
+          console.log(`⏱️ Time tracked: ${timeSpent}s on ${conceptId}`)
+        }
+      }
     }
-  }, [explanation])
+  }, [])
 
   const handleComplete = async () => {
+    // Update local store
     updateConceptMastery(conceptId, 0.8)
     
-    // Record to backend if authenticated
+    // Save to database if authenticated
     if (isAuthenticated) {
       try {
-        await learnAPI.recordProgress(conceptId, true)
+        await recordProgress(conceptId, true)
+        
+        // Track final time
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000)
+        await viewConcept(conceptId, 'learn_page', timeSpent)
+        
+        // Refresh data
+        await loadAllUserData()
+        
+        setCompleted(true)
+        console.log(`✅ Completed: ${conceptId}`)
       } catch (err) {
-        console.error('Failed to record progress:', err)
+        console.error('Failed to save completion:', err)
       }
+    } else {
+      setCompleted(true)
     }
   }
 
   const steps = [
+    { id: 'intro', title: '1. Concept Intro' },
     { id: 'ai-explain', title: '🧠 AI Explanation' },
-    ...(concept.steps || []),
     { id: 'practice', title: '🎯 Practice' }
   ]
+
+  if (completed) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-12">
+        <div className="text-6xl mb-6">🎉</div>
+        <h2 className="text-3xl font-bold mb-4">Concept Completed!</h2>
+        <p className="text-slate-400 mb-2">{concept.title}</p>
+        {isAuthenticated && (
+          <p className="text-emerald-400 mb-8">✅ Progress saved to your account</p>
+        )}
+        
+        <div className="flex gap-4 justify-center">
+          <Link to="/skills" className="btn btn-secondary">
+            ← Back to Skill Tree
+          </Link>
+          <Link to="/practice" className="btn btn-primary">
+            Practice →
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div className="animate-fade-in-up">
-        <Link to="/foundation" className="text-sm text-slate-400 hover:text-white">
-          ← Back to Foundation
+        <Link to="/skills" className="text-sm text-slate-400 hover:text-white">
+          ← Back to Skill Tree
         </Link>
-        <div className="flex items-center gap-4 mt-4">
-          <h1 className="text-3xl font-bold">{concept.title}</h1>
-          {isAuthenticated && (
-            <span className="badge badge-primary text-xs">
-              Explainer Agent Active
-            </span>
-          )}
+        <div className="flex items-center justify-between mt-4">
+          <div>
+            <h1 className="text-3xl font-bold">{concept.title}</h1>
+            <p className="text-slate-400">{concept.phase}</p>
+          </div>
+          <div className="text-right">
+            {isAuthenticated && (
+              <div className="badge badge-primary mb-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 mr-2" />
+                Tracking
+              </div>
+            )}
+            {currentMastery > 0 && (
+              <div className="text-2xl font-bold text-indigo-400">{currentMastery}%</div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -116,28 +173,51 @@ function Learn() {
         style={{ animationDelay: '0.2s' }}
       >
         {currentStep === 0 ? (
-          // AI Explanation (first step)
+          // Intro
+          <div>
+            <h3>What is {concept.title}?</h3>
+            <p className="text-slate-400">
+              This concept is part of the <strong>{concept.phase}</strong> phase.
+            </p>
+            
+            {concept.skills && concept.skills.length > 0 && (
+              <div className="mt-4">
+                <h4>Skills you'll learn:</h4>
+                <div className="flex flex-wrap gap-2 not-prose">
+                  {concept.skills.map(skill => (
+                    <span key={skill} className="badge badge-primary">{skill}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-indigo-900/30 p-4 rounded-lg mt-6">
+              <strong>💡 Tip:</strong> Check the AI Explanation tab for a personalized lesson.
+            </div>
+          </div>
+        ) : currentStep === 1 ? (
+          // AI Explanation
           <div>
             <h3 className="flex items-center gap-2">
               <span>🧠</span>
               AI-Generated Explanation
             </h3>
             
-            {loading ? (
+            {aiLoading ? (
               <div className="flex items-center gap-3 py-8">
                 <div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />
                 <span className="text-slate-400">Explainer Agent is preparing your lesson...</span>
               </div>
-            ) : error ? (
+            ) : aiError ? (
               <div className="bg-rose-950/30 border border-rose-500/50 rounded-lg p-4">
-                <p className="text-rose-300">{error}</p>
+                <p className="text-rose-300">{aiError}</p>
                 {!isAuthenticated && (
                   <Link to="/login" className="text-indigo-400 hover:underline mt-2 block">
                     Log in for AI-powered explanations →
                   </Link>
                 )}
               </div>
-            ) : aiContent ? (
+            ) : explanation ? (
               <ReactMarkdown
                 components={{
                   code: ({ inline, children }) => 
@@ -150,7 +230,7 @@ function Learn() {
                     )
                 }}
               >
-                {aiContent}
+                {explanation}
               </ReactMarkdown>
             ) : (
               <div className="text-slate-400">
@@ -161,15 +241,15 @@ function Learn() {
               </div>
             )}
           </div>
-        ) : currentStep === steps.length - 1 ? (
-          // Practice step (last step)
+        ) : (
+          // Practice
           <div>
             <h3>🎯 Practice Challenge</h3>
             <p>Apply what you've learned with a real-world scenario.</p>
             
             <div className="bg-slate-800 p-4 rounded-lg my-4">
               <p className="font-semibold mb-2">Your Task:</p>
-              <p>Explain {conceptId?.replace(/-/g, ' ')} to a junior developer in your own words.</p>
+              <p>Explain {concept.title} to a junior developer in your own words.</p>
             </div>
 
             <div className="bg-indigo-900/50 p-4 rounded-lg">
@@ -177,9 +257,6 @@ function Learn() {
               <p>If you can teach it, you understand it. Try explaining without looking at the notes.</p>
             </div>
           </div>
-        ) : (
-          // Static steps
-          <div dangerouslySetInnerHTML={{ __html: steps[currentStep]?.content || '' }} />
         )}
       </div>
 
@@ -194,13 +271,12 @@ function Learn() {
         </button>
 
         {currentStep === steps.length - 1 ? (
-          <Link 
-            to="/foundation"
+          <button 
             onClick={handleComplete}
             className="btn btn-primary"
           >
-            Complete Module ✓
-          </Link>
+            Complete Concept ✓
+          </button>
         ) : (
           <button
             onClick={() => setCurrentStep(currentStep + 1)}
@@ -210,6 +286,13 @@ function Learn() {
           </button>
         )}
       </div>
+
+      {/* Time indicator */}
+      {isAuthenticated && (
+        <div className="text-center text-xs text-slate-500">
+          Time tracking active • Progress saves automatically
+        </div>
+      )}
     </div>
   )
 }
