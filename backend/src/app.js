@@ -11,6 +11,7 @@ import dotenv from 'dotenv'
 import authRoutes from './routes/auth.js'
 import learnRoutes from './routes/learn.js'
 import agentRoutes from './routes/agent.js'
+import userRoutes from './routes/user.js'
 
 // Database
 import { initDatabase } from './db/postgres.js'
@@ -49,6 +50,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes)
 app.use('/api/learn', learnRoutes)
 app.use('/api/agent', agentRoutes)
+app.use('/api/user', userRoutes)
 
 // 404 handler
 app.use((req, res) => {

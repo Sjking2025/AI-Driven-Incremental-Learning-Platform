@@ -1,16 +1,17 @@
 // ========================================
 // Analytics Page
-// Comprehensive learning analytics dashboard
+// Uses LearningContext for real user data
 // ========================================
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useLearning } from '../contexts/LearningContext'
 import { useConceptMemory } from '../stores/useConceptMemory'
 import { 
   getRecommendations, 
-  getLearningStats, 
   getMasteryTrend, 
-  getSkillRadar,
+  getSkillRadar as getLocalSkillRadar,
   calculateDifficultyLevel,
   DIFFICULTY
 } from '../services/adaptiveLearning'
@@ -25,7 +26,27 @@ const difficultyInfo = {
 }
 
 function Analytics() {
+  const { isAuthenticated, user } = useAuth()
+  const { 
+    stats, 
+    activity, 
+    progress: dbProgress, 
+    loading, 
+    lastSync,
+    totalConcepts,
+    avgMastery,
+    weakCount,
+    strongCount,
+    loadAllUserData 
+  } = useLearning()
   const { concepts: masteryData } = useConceptMemory()
+
+  // Load fresh data on mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadAllUserData()
+    }
+  }, [isAuthenticated, loadAllUserData])
   
   const completedConcepts = useMemo(() => 
     Object.entries(masteryData)
@@ -34,40 +55,135 @@ function Analytics() {
     [masteryData]
   )
 
-  const stats = useMemo(() => getLearningStats(masteryData), [masteryData])
   const recommendations = useMemo(() => 
     getRecommendations(masteryData, completedConcepts), 
     [masteryData, completedConcepts]
   )
   const masteryTrend = useMemo(() => getMasteryTrend(masteryData), [masteryData])
-  const skillRadarData = useMemo(() => getSkillRadar(masteryData), [masteryData])
+  
+  const skillRadarData = useMemo(() => {
+    // Use dbProgress to calculate skill radar if available
+    if (isAuthenticated && dbProgress && dbProgress.length > 0) {
+      // Group progress by category/phase
+      const categories = {}
+      dbProgress.forEach(p => {
+        const category = p.concept_id?.split('-')[0] || 'other'
+        if (!categories[category]) categories[category] = []
+        categories[category].push(p.mastery)
+      })
+      return Object.entries(categories).map(([name, values]) => ({
+        skill: name,
+        value: Math.round(values.reduce((a, b) => a + b, 0) / values.length)
+      }))
+    }
+    return getLocalSkillRadar(masteryData)
+  }, [isAuthenticated, dbProgress, masteryData])
+
   const difficulty = useMemo(() => calculateDifficultyLevel(masteryData), [masteryData])
-  const diffInfo = difficultyInfo[difficulty]
+  const diffInfo = difficultyInfo[difficulty] || { label: 'Beginner', color: 'text-emerald-400', icon: '🌱' }
 
   const maxTrend = Math.max(...masteryTrend.map(d => d.value), 1)
+
+  // Stats from DB or local
+  const displayStats = {
+    totalPracticed: isAuthenticated ? totalConcepts : Object.keys(masteryData).filter(k => masteryData[k]?.exposures > 0).length,
+    averageMastery: isAuthenticated ? avgMastery : Object.values(masteryData).reduce((a, b) => a + (b.mastery || 0), 0) / Math.max(Object.keys(masteryData).length, 1),
+    successRate: stats?.success_rate || 0,
+    strongCount: isAuthenticated ? strongCount : Object.values(masteryData).filter(m => m.mastery >= 80).length,
+    weakCount: isAuthenticated ? weakCount : Object.values(masteryData).filter(m => m.mastery < 50).length,
+    totalExposures: stats?.total_exposures || 0
+  }
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center animate-fade-in-up">
-        <h1 className="text-4xl font-bold mb-4">Learning Analytics</h1>
+        <div className="inline-flex items-center gap-2 badge badge-primary mb-4">
+          {isAuthenticated ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Data from Database
+            </>
+          ) : '📊 Local Analytics'}
+        </div>
+        <h1 className="text-4xl font-bold mb-4">
+          {user?.name ? `${user.name}'s ` : ''}Learning Analytics
+        </h1>
         <p className="text-slate-400 max-w-xl mx-auto">
-          Track your progress, identify weak areas, and get personalized recommendations.
+          {isAuthenticated 
+            ? `Real-time stats from your account. Last synced: ${lastSync ? new Date(lastSync).toLocaleTimeString() : 'Never'}`
+            : 'Login to save your progress and see personalized analytics.'}
         </p>
       </div>
+
+      {/* Login prompt */}
+      {!isAuthenticated && (
+        <div className="card bg-gradient-to-r from-indigo-950/50 to-purple-950/50 animate-fade-in-up">
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">🔐</span>
+            <div className="flex-1">
+              <h3 className="font-semibold">Login for Real-Time Analytics</h3>
+              <p className="text-sm text-slate-400">
+                Your data will be stored in the database and synced across devices.
+              </p>
+            </div>
+            <Link to="/login" className="btn btn-primary">
+              Sign In →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Job Readiness (DB only) */}
+      {isAuthenticated && (
+        <div className="card bg-gradient-to-r from-indigo-950/50 to-purple-950/50 animate-fade-in-up">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold mb-1">
+                Job Readiness Score
+                <span className="text-xs text-emerald-400 ml-2">● From DB</span>
+              </h3>
+              <p className="text-sm text-slate-400">Based on {displayStats.totalPracticed} concepts in your account</p>
+            </div>
+            <div className="text-right">
+              <div className="text-4xl font-bold text-indigo-400">{avgMastery || 0}%</div>
+              <div className="text-sm text-slate-400">
+                {avgMastery >= 70 ? 'Job Ready' : avgMastery >= 40 ? 'In Progress' : 'Getting Started'}
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">
+            <div className="glass rounded-lg p-2">
+              <div className="text-indigo-400 font-bold">{avgMastery || 0}%</div>
+              <div className="text-slate-500">Mastery</div>
+            </div>
+            <div className="glass rounded-lg p-2">
+              <div className="text-purple-400 font-bold">{displayStats.totalPracticed || 0}</div>
+              <div className="text-slate-500">Concepts</div>
+            </div>
+            <div className="glass rounded-lg p-2">
+              <div className="text-pink-400 font-bold">{displayStats.strongCount || 0}</div>
+              <div className="text-slate-500">Mastered</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         {[
-          { icon: '📚', value: stats.totalPracticed, label: 'Concepts Practiced' },
-          { icon: '📊', value: `${stats.averageMastery}%`, label: 'Avg Mastery' },
-          { icon: '✅', value: `${stats.successRate}%`, label: 'Success Rate' },
+          { icon: '📚', value: loading ? '...' : displayStats.totalPracticed, label: 'Concepts Practiced', fromDb: isAuthenticated },
+          { icon: '📊', value: loading ? '...' : `${Math.round(displayStats.averageMastery)}%`, label: 'Avg Mastery', fromDb: isAuthenticated },
+          { icon: '✅', value: loading ? '...' : `${displayStats.successRate}%`, label: 'Success Rate', fromDb: isAuthenticated },
           { icon: diffInfo.icon, value: diffInfo.label, label: 'Current Level', colorClass: diffInfo.color }
         ].map((stat, i) => (
           <div key={i} className="card text-center">
             <span className="text-2xl mb-2 block">{stat.icon}</span>
             <div className={`text-2xl font-bold ${stat.colorClass || ''}`}>{stat.value}</div>
-            <div className="text-sm text-slate-400">{stat.label}</div>
+            <div className="text-sm text-slate-400">
+              {stat.label}
+              {stat.fromDb && <span className="text-emerald-400 ml-1">●</span>}
+            </div>
           </div>
         ))}
       </div>
@@ -76,7 +192,10 @@ function Analytics() {
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Skill Radar */}
         <div className="card animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          <h3 className="font-semibold mb-4">Skill Distribution</h3>
+          <h3 className="font-semibold mb-4">
+            Skill Distribution 
+            {isAuthenticated && <span className="text-xs text-emerald-400 ml-2">● From DB</span>}
+          </h3>
           <SkillRadar data={skillRadarData} />
         </div>
 
@@ -103,38 +222,39 @@ function Analytics() {
         </div>
       </div>
 
-      {/* Recommendations & Strengths */}
+      {/* Recommendations & Breakdown */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Recommendations */}
         <div className="card animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
           <h3 className="font-semibold mb-4">🎯 Recommended Next</h3>
           <Recommendations recommendations={recommendations} />
         </div>
 
-        {/* Concept Breakdown */}
         <div className="card animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
-          <h3 className="font-semibold mb-4">Concept Breakdown</h3>
+          <h3 className="font-semibold mb-4">
+            Concept Breakdown
+            {isAuthenticated && <span className="text-xs text-emerald-400 ml-2">● From DB</span>}
+          </h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-emerald-950/30 rounded-lg">
               <div className="flex items-center gap-2">
                 <span className="text-emerald-400">✓</span>
                 <span>Strong Concepts</span>
               </div>
-              <span className="text-xl font-bold text-emerald-400">{stats.strongCount}</span>
+              <span className="text-xl font-bold text-emerald-400">{displayStats.strongCount}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-amber-950/30 rounded-lg">
               <div className="flex items-center gap-2">
                 <span className="text-amber-400">⚠</span>
                 <span>Needs Practice</span>
               </div>
-              <span className="text-xl font-bold text-amber-400">{stats.weakCount}</span>
+              <span className="text-xl font-bold text-amber-400">{displayStats.weakCount}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
               <div className="flex items-center gap-2">
                 <span className="text-slate-400">📝</span>
                 <span>Total Exposures</span>
               </div>
-              <span className="text-xl font-bold">{stats.totalExposures}</span>
+              <span className="text-xl font-bold">{displayStats.totalExposures}</span>
             </div>
           </div>
 
@@ -146,16 +266,18 @@ function Analytics() {
         </div>
       </div>
 
-      {/* Adaptive Learning Info */}
+      {/* Database Sync Info */}
       <div className="glass rounded-xl p-6 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
         <div className="flex items-start gap-4">
-          <span className="text-3xl">🧠</span>
+          <span className="text-3xl">{isAuthenticated ? '💾' : '🧠'}</span>
           <div>
-            <h4 className="font-semibold mb-2">Adaptive Learning Active</h4>
+            <h4 className="font-semibold mb-2">
+              {isAuthenticated ? 'Database Sync Active' : 'Adaptive Learning'}
+            </h4>
             <p className="text-sm text-slate-400">
-              Your difficulty level is set to <strong className={diffInfo.color}>{diffInfo.label}</strong>. 
-              The system automatically adjusts problem difficulty based on your performance. 
-              Keep practicing to level up!
+              {isAuthenticated 
+                ? `Your learning data is stored in PostgreSQL. The Evaluator Agent calculates your readiness score in real-time based on ${displayStats.totalPracticed} tracked concepts.`
+                : 'Your difficulty level is set to ' + diffInfo.label + '. Login to sync your progress to the database.'}
             </p>
           </div>
         </div>

@@ -1,20 +1,25 @@
 // ========================================
 // Practice Session Component
-// Mixed practice with reinforcement
+// Saves results to PostgreSQL database
 // ========================================
 
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useLearning } from '../contexts/LearningContext'
 import { generateMixedPractice } from '../services/reinforcementEngine'
 import { useConceptMemory } from '../stores/useConceptMemory'
 import { frontendSkillGraph } from '../data/skillGraph'
 
 function PracticeSession() {
+  const { isAuthenticated } = useAuth()
+  const { recordProgress: saveToDb, loadUserData } = useLearning()
   const { concepts: masteryData, recordExposure } = useConceptMemory()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [showAnswer, setShowAnswer] = useState(false)
   const [results, setResults] = useState([])
   const [sessionComplete, setSessionComplete] = useState(false)
+  const [saving, setSaving] = useState(false)
   
   // Get completed concepts
   const completedConcepts = useMemo(() => 
@@ -47,14 +52,28 @@ function PracticeSession() {
   const currentProblem = problems[currentIndex]
   const conceptTitle = frontendSkillGraph[currentProblem?.conceptId]?.title || ''
   
-  const handleAnswer = (correct) => {
-    // Record in memory
+  const handleAnswer = async (correct) => {
+    // Record locally
     recordExposure(currentProblem.conceptId, correct)
+    
+    // Save to database if authenticated
+    if (isAuthenticated) {
+      setSaving(true)
+      try {
+        await saveToDb(currentProblem.conceptId, correct)
+        console.log(`✅ Saved to DB: ${currentProblem.conceptId} - ${correct ? 'success' : 'failure'}`)
+      } catch (err) {
+        console.error('Failed to save to DB:', err)
+      } finally {
+        setSaving(false)
+      }
+    }
     
     // Track results
     setResults([...results, { 
       conceptId: currentProblem.conceptId, 
-      correct 
+      correct,
+      savedToDb: isAuthenticated
     }])
     
     // Move to next or complete
@@ -63,11 +82,16 @@ function PracticeSession() {
       setShowAnswer(false)
     } else {
       setSessionComplete(true)
+      // Refresh data after session
+      if (isAuthenticated) {
+        loadUserData()
+      }
     }
   }
   
   if (sessionComplete) {
     const correctCount = results.filter(r => r.correct).length
+    const savedToDB = results.filter(r => r.savedToDb).length
     
     return (
       <div className="max-w-2xl mx-auto text-center py-12">
@@ -75,9 +99,19 @@ function PracticeSession() {
           {correctCount === problems.length ? '🎉' : correctCount >= problems.length / 2 ? '👍' : '💪'}
         </div>
         <h2 className="text-3xl font-bold mb-4">Session Complete!</h2>
-        <p className="text-xl text-slate-400 mb-8">
+        <p className="text-xl text-slate-400 mb-4">
           You got {correctCount} out of {problems.length} correct
         </p>
+        
+        {isAuthenticated ? (
+          <p className="text-sm text-emerald-400 mb-8">
+            ✅ {savedToDB} results saved to your account
+          </p>
+        ) : (
+          <p className="text-sm text-amber-400 mb-8">
+            ⚠️ Results not saved - Login to track your progress
+          </p>
+        )}
         
         <div className="grid grid-cols-5 gap-2 mb-8">
           {results.map((r, i) => (
@@ -114,6 +148,7 @@ function PracticeSession() {
       <div className="flex items-center justify-between">
         <span className="text-sm text-slate-400">
           Question {currentIndex + 1} of {problems.length}
+          {isAuthenticated && <span className="text-emerald-400 ml-2">● Saving to DB</span>}
         </span>
         <div className="flex gap-1">
           {problems.map((_, i) => (
@@ -200,15 +235,17 @@ function PracticeSession() {
             <div className="flex gap-3">
               <button 
                 onClick={() => handleAnswer(false)}
-                className="btn btn-secondary flex-1"
+                disabled={saving}
+                className="btn btn-secondary flex-1 disabled:opacity-50"
               >
-                ❌ Got it Wrong
+                {saving ? '...' : '❌ Got it Wrong'}
               </button>
               <button 
                 onClick={() => handleAnswer(true)}
-                className="btn btn-primary flex-1"
+                disabled={saving}
+                className="btn btn-primary flex-1 disabled:opacity-50"
               >
-                ✅ Got it Right
+                {saving ? '...' : '✅ Got it Right'}
               </button>
             </div>
           </div>

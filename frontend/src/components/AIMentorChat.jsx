@@ -1,33 +1,36 @@
 // ========================================
 // AI Mentor Chat Component
-// Interactive chat with AI explanations
+// Connected to Backend Multi-Agent System
 // ========================================
 
 import { useState, useRef, useEffect } from 'react'
-import { askMentor } from '../services/aiMentor'
+import { agentAPI } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import ReactMarkdown from 'react-markdown'
 
 const suggestedQuestions = [
   "Why do closures exist in JavaScript?",
-  "When should I use async/await vs .then()?",
-  "Why does 'this' behave differently in arrow functions?",
-  "What's the difference between == and ===?",
+  "Explain async/await like I'm a beginner",
+  "Compare React useEffect vs componentDidMount",
+  "Debug this: const x = {}; x.name.length",
   "Why do we need useEffect in React?"
 ]
 
 function AIMentorChat() {
+  const { isAuthenticated } = useAuth()
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: `👋 Hi! I'm your AI mentor. I explain programming concepts like a senior developer would.
+      content: `👋 Hi! I'm your AI Mentor powered by a multi-agent system.
 
-Ask me anything about:
-- **Why** something works (not just how)
-- **Where** concepts are used in production
-- **What** mistakes to avoid
+**Available Agents:**
+- 💡 **Explainer** — Deep concept explanations
+- 🐛 **Debug** — Code debugging with senior insights
+- 🏢 **Scenario** — Real-world industry examples
 
-Try asking: "Why do closures exist?"`,
-      timestamp: new Date().toISOString()
+Ask me anything! Try: "Why do closures exist?"`,
+      timestamp: new Date().toISOString(),
+      agent: 'orchestrator'
     }
   ])
   const [input, setInput] = useState('')
@@ -56,20 +59,25 @@ Try asking: "Why do closures exist?"`,
     setIsLoading(true)
 
     try {
-      const response = await askMentor(question)
+      // Use backend smart routing - orchestrator decides which agent
+      const response = await agentAPI.ask(question, {})
       
       const assistantMessage = {
         role: 'assistant',
-        content: response.answer,
-        timestamp: response.timestamp,
-        error: !response.success
+        content: response.result || response.response || 'I received your question but had trouble processing it.',
+        timestamp: new Date().toISOString(),
+        agent: response.routing?.agent || 'orchestrator',
+        duration: response.duration_ms
       }
 
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
+      console.error('Agent error:', error)
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: isAuthenticated 
+          ? `Sorry, I encountered an error: ${error.message}. Please try again.`
+          : '🔒 Please **log in** to use the AI Mentor with full backend features.',
         timestamp: new Date().toISOString(),
         error: true
       }])
@@ -94,11 +102,20 @@ Try asking: "Why do closures exist?"`,
         </div>
         <div>
           <h3 className="font-semibold">AI Mentor</h3>
-          <span className="text-xs text-slate-400">Powered by Gemini</span>
+          <span className="text-xs text-slate-400">Multi-Agent System (8 Agents)</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs text-slate-400">Online</span>
+          {isAuthenticated ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs text-slate-400">Connected</span>
+            </>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-xs text-amber-400">Login for full access</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -116,6 +133,11 @@ Try asking: "Why do closures exist?"`,
                   : 'bg-slate-800 text-slate-100 rounded-bl-sm'
               } ${msg.error ? 'border border-rose-500/50' : ''}`}
             >
+              {msg.role === 'assistant' && msg.agent && (
+                <div className="text-xs text-indigo-400 mb-2">
+                  Agent: {msg.agent} {msg.duration && `(${msg.duration}ms)`}
+                </div>
+              )}
               {msg.role === 'assistant' ? (
                 <div className="prose prose-invert prose-sm max-w-none">
                   <ReactMarkdown
@@ -146,10 +168,11 @@ Try asking: "Why do closures exist?"`,
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-slate-800 rounded-2xl rounded-bl-sm p-4">
+              <div className="text-xs text-indigo-400 mb-2">Routing to agent...</div>
               <div className="flex gap-1">
-                <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -183,7 +206,7 @@ Try asking: "Why do closures exist?"`,
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask me anything about programming..."
+            placeholder={isAuthenticated ? "Ask me anything..." : "Login to use AI Mentor"}
             className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 resize-none focus:outline-none focus:border-indigo-500 transition-colors"
             rows={1}
             disabled={isLoading}

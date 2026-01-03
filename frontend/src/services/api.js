@@ -1,6 +1,6 @@
 // ========================================
 // API Client
-// Connects frontend to backend agents
+// Connects frontend to backend + user data
 // ========================================
 
 const API_BASE = 'http://localhost:3001/api'
@@ -38,10 +38,10 @@ async function request(endpoint, options = {}) {
 // ========================================
 
 export const authAPI = {
-    async register(email, password, name) {
+    async register(email, password, name, selectedCareer) {
         const data = await request('/auth/register', {
             method: 'POST',
-            body: JSON.stringify({ email, password, name })
+            body: JSON.stringify({ email, password, name, selectedCareer })
         })
         if (data.token) {
             localStorage.setItem('learnpath_token', data.token)
@@ -64,8 +64,81 @@ export const authAPI = {
         return request('/auth/me')
     },
 
+    async updateProfile(updates) {
+        return request('/auth/profile', {
+            method: 'PUT',
+            body: JSON.stringify(updates)
+        })
+    },
+
     logout() {
         localStorage.removeItem('learnpath_token')
+    }
+}
+
+// ========================================
+// User API (Profile, Activity, Sessions)
+// ========================================
+
+export const userAPI = {
+    // Profile
+    async getProfile() {
+        return request('/user/profile')
+    },
+
+    async updateProfile(updates) {
+        return request('/user/profile', {
+            method: 'PUT',
+            body: JSON.stringify(updates)
+        })
+    },
+
+    // Concept views
+    async viewConcept(conceptId, source = 'learn_page', timeSpentSeconds = 0) {
+        return request('/user/view-concept', {
+            method: 'POST',
+            body: JSON.stringify({ conceptId, source, timeSpentSeconds })
+        })
+    },
+
+    async getViewedConcepts() {
+        return request('/user/viewed-concepts')
+    },
+
+    // Daily activity
+    async recordActivity(data) {
+        return request('/user/record-activity', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        })
+    },
+
+    async getActivity(days = 7) {
+        return request(`/user/activity?days=${days}`)
+    },
+
+    // Practice sessions
+    async startPracticeSession(sessionType = 'mixed') {
+        return request('/user/practice-session/start', {
+            method: 'POST',
+            body: JSON.stringify({ sessionType })
+        })
+    },
+
+    async endPracticeSession(sessionId, results) {
+        return request(`/user/practice-session/${sessionId}/end`, {
+            method: 'PUT',
+            body: JSON.stringify(results)
+        })
+    },
+
+    async getPracticeSessions(limit = 10) {
+        return request(`/user/practice-sessions?limit=${limit}`)
+    },
+
+    // All progress data
+    async getAllProgress() {
+        return request('/user/all-progress')
     }
 }
 
@@ -193,4 +266,4 @@ export const agents = {
     }
 }
 
-export default { authAPI, agentAPI, learnAPI, agents }
+export default { authAPI, agentAPI, learnAPI, userAPI, agents }

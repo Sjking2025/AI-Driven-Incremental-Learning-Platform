@@ -1,22 +1,22 @@
 // ========================================
 // Auth Routes
-// JWT-based authentication
+// JWT-based authentication + Profile creation
 // ========================================
 
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { query } from '../db/postgres.js'
+import { query, createUserProfile, getUserProfile } from '../db/postgres.js'
 
 const router = express.Router()
 
 /**
  * POST /api/auth/register
- * Register a new user
+ * Register a new user + create profile
  */
 router.post('/register', async (req, res) => {
     try {
-        const { email, password, name } = req.body
+        const { email, password, name, selectedCareer } = req.body
 
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password required' })
@@ -39,6 +39,15 @@ router.post('/register', async (req, res) => {
 
         const user = result.rows[0]
 
+        // Create user profile with selected career
+        await createUserProfile(user.id)
+        if (selectedCareer) {
+            await query(
+                'UPDATE user_profiles SET selected_career = $1 WHERE user_id = $2',
+                [selectedCareer, user.id]
+            )
+        }
+
         // Generate token
         const token = jwt.sign(
             { userId: user.id, email: user.email },
@@ -59,7 +68,7 @@ router.post('/register', async (req, res) => {
 
 /**
  * POST /api/auth/login
- * Login existing user
+ * Login existing user + return profile
  */
 router.post('/login', async (req, res) => {
     try {
@@ -87,6 +96,31 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' })
         }
 
+        // Get or create profile
+        let profile = await getUserProfile(user.id)
+        if (!profile) {
+            profile = await createUserProfile(user.id)
+        }
+
+        // Update last active and streak
+        const today = new Date().toISOString().split('T')[0]
+        if (profile && profile.last_active_date !== today) {
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+            const newStreak = profile.last_active_date === yesterday
+                ? profile.current_streak + 1
+                : 1
+
+            await query(`
+                UPDATE user_profiles 
+                SET last_active_date = $1, 
+                    current_streak = $2,
+                    longest_streak = GREATEST(longest_streak, $2)
+                WHERE user_id = $3
+            `, [today, newStreak, user.id])
+
+            profile.current_streak = newStreak
+        }
+
         // Generate token
         const token = jwt.sign(
             { userId: user.id, email: user.email },
@@ -97,6 +131,7 @@ router.post('/login', async (req, res) => {
         res.json({
             message: 'Login successful',
             user: { id: user.id, email: user.email, name: user.name },
+            profile: profile,
             token
         })
     } catch (error) {
@@ -107,12 +142,12 @@ router.post('/login', async (req, res) => {
 
 /**
  * GET /api/auth/me
- * Get current user (requires auth)
+ * Get current user + profile
  */
 router.get('/me', authMiddleware, async (req, res) => {
     try {
         const result = await query(
-            'SELECT id, email, name, current_goal, created_at FROM users WHERE id = $1',
+            'SELECT id, email, name, created_at FROM users WHERE id = $1',
             [req.userId]
         )
 
@@ -120,10 +155,54 @@ router.get('/me', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'User not found' })
         }
 
-        res.json({ user: result.rows[0] })
+        const profile = await getUserProfile(req.userId)
+
+        res.json({
+            user: result.rows[0],
+            profile: profile || null
+        })
     } catch (error) {
         console.error('Get user error:', error)
         res.status(500).json({ error: 'Failed to get user' })
+    }
+})
+
+/**
+ * PUT /api/auth/profile
+ * Update user profile
+ */
+router.put('/profile', authMiddleware, async (req, res) => {
+    try {
+        const { selectedCareer, currentPhase, currentConcept, dailyGoalMinutes } = req.body
+
+        const updates = {}
+        if (selectedCareer) updates.selected_career = selectedCareer
+        if (currentPhase) updates.current_phase = currentPhase
+        if (currentConcept) updates.current_concept = currentConcept
+        if (dailyGoalMinutes) updates.daily_goal_minutes = dailyGoalMinutes
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ error: 'No updates provided' })
+        }
+
+        const fields = Object.keys(updates)
+        const values = Object.values(updates)
+        const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ')
+
+        const result = await query(`
+            UPDATE user_profiles 
+            SET ${setClause}, updated_at = NOW()
+            WHERE user_id = $1
+            RETURNING *
+        `, [req.userId, ...values])
+
+        res.json({
+            message: 'Profile updated',
+            profile: result.rows[0]
+        })
+    } catch (error) {
+        console.error('Update profile error:', error)
+        res.status(500).json({ error: 'Failed to update profile' })
     }
 })
 

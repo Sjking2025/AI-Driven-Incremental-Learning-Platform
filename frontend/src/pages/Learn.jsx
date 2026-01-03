@@ -1,144 +1,153 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { useAppStore } from '../stores/useAppStore'
+// ========================================
+// Learn Page
+// Tracks views and completion to database
+// ========================================
 
-// 5-Step Learning Content
-const conceptData = {
-  'design-principles': {
-    title: 'Design Principles',
-    steps: [
-      {
-        id: 'intro',
-        title: '1. Concept Intro',
-        content: `
-          <h3>What is Visual Hierarchy?</h3>
-          <p>Visual hierarchy is the arrangement of elements to show their order of importance.</p>
-          
-          <h4>Where it's used:</h4>
-          <ul>
-            <li>Landing pages - Guide users to CTA</li>
-            <li>Dashboards - Highlight key metrics</li>
-            <li>E-commerce - Focus on products</li>
-          </ul>
-          
-          <h4>Why it matters:</h4>
-          <p>Users scan, they don't read. Without hierarchy, everything competes for attention and nothing wins.</p>
-          
-          <h4>Common mistakes:</h4>
-          <ul>
-            <li>❌ Multiple equal-sized headings</li>
-            <li>❌ Competing colors</li>
-            <li>❌ No clear focal point</li>
-          </ul>
-        `
-      },
-      {
-        id: 'practice',
-        title: '2. Mini Project',
-        content: `
-          <h3>Scenario: E-commerce Product Page</h3>
-          <p>You're designing a product page. What should users see first?</p>
-          
-          <div class="bg-slate-800 p-4 rounded-lg my-4">
-            <p class="font-mono text-sm">
-              Product Image → Price → Add to Cart → Reviews → Description
-            </p>
-          </div>
-          
-          <h4>Your Task:</h4>
-          <p>Rank these elements by importance and explain your reasoning.</p>
-          
-          <h4>Hint:</h4>
-          <p>Think about what the user came to do: BUY. Everything should guide there.</p>
-        `
-      },
-      {
-        id: 'why',
-        title: '3. Why This Works',
-        content: `
-          <h3>The Psychology Behind It</h3>
-          <p>Our eyes naturally follow a pattern:</p>
-          
-          <ul>
-            <li><strong>Size:</strong> Bigger = more important</li>
-            <li><strong>Color:</strong> Contrast draws attention</li>
-            <li><strong>Position:</strong> Top-left starts the journey</li>
-            <li><strong>Whitespace:</strong> Isolation creates focus</li>
-          </ul>
-          
-          <h4>Why alternatives fail:</h4>
-          <p>When everything is "important," nothing stands out. Users get overwhelmed and leave.</p>
-          
-          <div class="bg-indigo-900/50 p-4 rounded-lg my-4">
-            <strong>Senior Insight:</strong> Amazon's "Add to Cart" button isn't just well-placed — it's the only orange element on a white page. That's deliberate.
-          </div>
-        `
-      },
-      {
-        id: 'industry',
-        title: '4. Industry Mapping',
-        content: `
-          <h3>Where Companies Use This</h3>
-          
-          <h4>🏢 Stripe</h4>
-          <p>Their landing page has ONE focus: "Start now" button. Everything else fades.</p>
-          
-          <h4>🏢 Airbnb</h4>
-          <p>Search bar dominates the header. Photos dominate listings.</p>
-          
-          <h4>🏢 Apple</h4>
-          <p>Product images are massive. Text is minimal. The product sells itself.</p>
-          
-          <h4>Interview Question:</h4>
-          <p>"How would you redesign this page to improve conversion?"</p>
-          <p class="text-sm text-slate-400">Start with: "First, I'd identify the primary action..."</p>
-        `
-      },
-      {
-        id: 'challenge',
-        title: '5. Skill Challenge',
-        content: `
-          <h3>Debug This Design</h3>
-          <p>A landing page has these issues:</p>
-          
-          <ul>
-            <li>3 CTAs of equal prominence</li>
-            <li>Hero text and image compete for attention</li>
-            <li>Navigation has 8 items at same size</li>
-          </ul>
-          
-          <h4>Your Fix:</h4>
-          <p>Describe 3 specific changes you'd make and why.</p>
-          
-          <div class="bg-emerald-900/30 p-4 rounded-lg my-4">
-            <strong>Success criteria:</strong> After your changes, a stranger should know what to do within 3 seconds.
-          </div>
-        `
-      }
-    ]
-  }
-}
+import { useState, useEffect, useRef } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useLearning } from '../contexts/LearningContext'
+import { useExplainer } from '../hooks/useAgents'
+import { learnAPI } from '../services/api'
+import { useAppStore } from '../stores/useAppStore'
+import { frontendSkillGraph } from '../data/skillGraph'
+import ReactMarkdown from 'react-markdown'
 
 function Learn() {
   const { conceptId } = useParams()
-  const [currentStep, setCurrentStep] = useState(0)
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
+  const { 
+    viewConcept, 
+    recordProgress, 
+    updateProfile, 
+    getMastery,
+    loadAllUserData 
+  } = useLearning()
+  const { explain, explanation, loading: aiLoading, error: aiError } = useExplainer()
   const updateConceptMastery = useAppStore((state) => state.updateConceptMastery)
+  
+  const [currentStep, setCurrentStep] = useState(0)
+  const [startTime] = useState(Date.now())
+  const [completed, setCompleted] = useState(false)
+  const hasTrackedView = useRef(false)
 
-  const concept = conceptData[conceptId] || conceptData['design-principles']
-  const steps = concept.steps
+  // Get concept data from skill graph
+  const concept = frontendSkillGraph[conceptId] || { 
+    title: conceptId?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), 
+    skills: [],
+    phase: 'foundation'
+  }
 
-  const handleComplete = () => {
-    updateConceptMastery(conceptId, 0.8) // 80% mastery on completion
+  const currentMastery = getMastery(conceptId) || 0
+
+  // Track view when page loads
+  useEffect(() => {
+    if (isAuthenticated && conceptId && !hasTrackedView.current) {
+      hasTrackedView.current = true
+      viewConcept(conceptId, 'learn_page', 0)
+      console.log(`👁️ Tracked view: ${conceptId}`)
+    }
+  }, [isAuthenticated, conceptId, viewConcept])
+
+  // Fetch AI explanation when concept changes
+  useEffect(() => {
+    if (isAuthenticated && conceptId) {
+      explain(conceptId, 'beginner')
+    }
+  }, [isAuthenticated, conceptId, explain])
+
+  // Track time spent when leaving
+  useEffect(() => {
+    return () => {
+      if (isAuthenticated && conceptId && hasTrackedView.current) {
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000)
+        if (timeSpent > 5) {
+          viewConcept(conceptId, 'learn_page', timeSpent)
+          console.log(`⏱️ Time tracked: ${timeSpent}s on ${conceptId}`)
+        }
+      }
+    }
+  }, [])
+
+  const handleComplete = async () => {
+    // Update local store
+    updateConceptMastery(conceptId, 0.8)
+    
+    // Save to database if authenticated
+    if (isAuthenticated) {
+      try {
+        await recordProgress(conceptId, true)
+        
+        // Track final time
+        const timeSpent = Math.floor((Date.now() - startTime) / 1000)
+        await viewConcept(conceptId, 'learn_page', timeSpent)
+        
+        // Refresh data
+        await loadAllUserData()
+        
+        setCompleted(true)
+        console.log(`✅ Completed: ${conceptId}`)
+      } catch (err) {
+        console.error('Failed to save completion:', err)
+      }
+    } else {
+      setCompleted(true)
+    }
+  }
+
+  const steps = [
+    { id: 'intro', title: '1. Concept Intro' },
+    { id: 'ai-explain', title: '🧠 AI Explanation' },
+    { id: 'practice', title: '🎯 Practice' }
+  ]
+
+  if (completed) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-12">
+        <div className="text-6xl mb-6">🎉</div>
+        <h2 className="text-3xl font-bold mb-4">Concept Completed!</h2>
+        <p className="text-slate-400 mb-2">{concept.title}</p>
+        {isAuthenticated && (
+          <p className="text-emerald-400 mb-8">✅ Progress saved to your account</p>
+        )}
+        
+        <div className="flex gap-4 justify-center">
+          <Link to="/skills" className="btn btn-secondary">
+            ← Back to Skill Tree
+          </Link>
+          <Link to="/practice" className="btn btn-primary">
+            Practice →
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div className="animate-fade-in-up">
-        <Link to="/foundation" className="text-sm text-slate-400 hover:text-white">
-          ← Back to Foundation
+        <Link to="/skills" className="text-sm text-slate-400 hover:text-white">
+          ← Back to Skill Tree
         </Link>
-        <h1 className="text-3xl font-bold mt-4">{concept.title}</h1>
+        <div className="flex items-center justify-between mt-4">
+          <div>
+            <h1 className="text-3xl font-bold">{concept.title}</h1>
+            <p className="text-slate-400">{concept.phase}</p>
+          </div>
+          <div className="text-right">
+            {isAuthenticated && (
+              <div className="badge badge-primary mb-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 mr-2" />
+                Tracking
+              </div>
+            )}
+            {currentMastery > 0 && (
+              <div className="text-2xl font-bold text-indigo-400">{currentMastery}%</div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Step Navigation */}
@@ -162,8 +171,94 @@ function Learn() {
       <div 
         className="card prose prose-invert max-w-none animate-fade-in-up"
         style={{ animationDelay: '0.2s' }}
-        dangerouslySetInnerHTML={{ __html: steps[currentStep].content }}
-      />
+      >
+        {currentStep === 0 ? (
+          // Intro
+          <div>
+            <h3>What is {concept.title}?</h3>
+            <p className="text-slate-400">
+              This concept is part of the <strong>{concept.phase}</strong> phase.
+            </p>
+            
+            {concept.skills && concept.skills.length > 0 && (
+              <div className="mt-4">
+                <h4>Skills you'll learn:</h4>
+                <div className="flex flex-wrap gap-2 not-prose">
+                  {concept.skills.map(skill => (
+                    <span key={skill} className="badge badge-primary">{skill}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-indigo-900/30 p-4 rounded-lg mt-6">
+              <strong>💡 Tip:</strong> Check the AI Explanation tab for a personalized lesson.
+            </div>
+          </div>
+        ) : currentStep === 1 ? (
+          // AI Explanation
+          <div>
+            <h3 className="flex items-center gap-2">
+              <span>🧠</span>
+              AI-Generated Explanation
+            </h3>
+            
+            {aiLoading ? (
+              <div className="flex items-center gap-3 py-8">
+                <div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />
+                <span className="text-slate-400">Explainer Agent is preparing your lesson...</span>
+              </div>
+            ) : aiError ? (
+              <div className="bg-rose-950/30 border border-rose-500/50 rounded-lg p-4">
+                <p className="text-rose-300">{aiError}</p>
+                {!isAuthenticated && (
+                  <Link to="/login" className="text-indigo-400 hover:underline mt-2 block">
+                    Log in for AI-powered explanations →
+                  </Link>
+                )}
+              </div>
+            ) : explanation ? (
+              <ReactMarkdown
+                components={{
+                  code: ({ inline, children }) => 
+                    inline ? (
+                      <code className="bg-slate-700 px-1 rounded">{children}</code>
+                    ) : (
+                      <pre className="bg-slate-900 p-3 rounded-lg overflow-x-auto">
+                        <code>{children}</code>
+                      </pre>
+                    )
+                }}
+              >
+                {explanation}
+              </ReactMarkdown>
+            ) : (
+              <div className="text-slate-400">
+                <p>Log in to get AI-powered explanations from the Explainer Agent.</p>
+                <Link to="/login" className="btn btn-primary mt-4">
+                  Sign In →
+                </Link>
+              </div>
+            )}
+          </div>
+        ) : (
+          // Practice
+          <div>
+            <h3>🎯 Practice Challenge</h3>
+            <p>Apply what you've learned with a real-world scenario.</p>
+            
+            <div className="bg-slate-800 p-4 rounded-lg my-4">
+              <p className="font-semibold mb-2">Your Task:</p>
+              <p>Explain {concept.title} to a junior developer in your own words.</p>
+            </div>
+
+            <div className="bg-indigo-900/50 p-4 rounded-lg">
+              <p className="font-semibold mb-2">💡 Senior Tip:</p>
+              <p>If you can teach it, you understand it. Try explaining without looking at the notes.</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Navigation */}
       <div className="flex justify-between animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
@@ -176,13 +271,12 @@ function Learn() {
         </button>
 
         {currentStep === steps.length - 1 ? (
-          <Link 
-            to="/foundation"
+          <button 
             onClick={handleComplete}
             className="btn btn-primary"
           >
-            Complete Module ✓
-          </Link>
+            Complete Concept ✓
+          </button>
         ) : (
           <button
             onClick={() => setCurrentStep(currentStep + 1)}
@@ -192,6 +286,13 @@ function Learn() {
           </button>
         )}
       </div>
+
+      {/* Time indicator */}
+      {isAuthenticated && (
+        <div className="text-center text-xs text-slate-500">
+          Time tracking active • Progress saves automatically
+        </div>
+      )}
     </div>
   )
 }
